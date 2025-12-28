@@ -331,15 +331,10 @@ model_NN = NearestNeighbors(
     )
 
 
-
-
-
 # 4. Entraînement du modèle
 model_NN.fit(X)
 
-
-
-
+# ==============
 
 # Fonction qui trouve le film recherché dans notre bdd
 def find_movie_index(input_title, df = df_films):
@@ -355,9 +350,7 @@ def find_movie_index(input_title, df = df_films):
     return matches.index[0]
 
 
-
-
-
+# ============
 # fonction de recommandation de film en fonction du titre de film recherché
 import numpy as np
 
@@ -386,9 +379,4 @@ def recommend_movies(input_title, model = model_NN, X_features = X, df = df_film
 
 
 df_films['TITLE_ORIGINAL'].unique()
-
-
-
-
-
 recommend_movies("Illï")

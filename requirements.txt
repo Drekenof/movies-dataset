@@ -1,1 +1,7 @@
 streamlit
+scikit-learn
+pandas
+joblib
+numpy
+scipy
+threadpoolctl
