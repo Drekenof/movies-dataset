@@ -1,7 +1,3 @@
-
-# In[2]:
-
-
 import pandas as pd
 import io
 from pathlib import Path
@@ -13,39 +9,36 @@ from sklearn.preprocessing import MinMaxScaler
 from scipy.sparse import csr_matrix
 
 
-# In[3]:
-
 
 df_films = pd.read_csv(
-    '/content/drive/MyDrive/Wild Code School/WSC Groupe Projet 2 Cinéma/EXPORTED_FILES/DIM_FILM_LIST_FINAL_short_for_quick_work.csv',
+    'DIM_FILM_LIST_FINAL_short_for_quick_work.csv',
     nrows = 1000,
     encoding = 'latin1')
 
 
-# In[4]:
 
 
 # df_films.head()
 len(df_films)
 
 
-# In[5]:
+
 
 
 df_person = pd.read_csv(
-    '/content/drive/MyDrive/Wild Code School/WSC Groupe Projet 2 Cinéma/EXPORTED_FILES/DIM_PERSON_LIST_FINAL_short_for_quick_work.csv',
+    'DIM_PERSON_LIST_FINAL_short_for_quick_work.csv',
     nrows = 1000,
     encoding='latin1')
 
 
-# In[6]:
+
 
 
 # Création de DECADE pour réduire le nombre de catégories à l'inverse de YEAR
 df_films["DECADE"] = (df_films["YEAR"] // 10) * 10
 
 
-# In[7]:
+
 
 
 # 1. Sélection des features les plus pertinentes pour définir la similarité
@@ -63,7 +56,7 @@ cols_title = ["TITLE_ORIGINAL", "TITLE_FR", "TITLE_EN"]
 col_text = "SUMMARY"
 
 
-# In[8]:
+
 
 
 variable_list = [cols_num, cols_cat_simple, cols_cat_multi, cols_title, col_text]
@@ -74,14 +67,14 @@ for variable in variable_list:
   print()
 
 
-# In[9]:
+
 
 
 # Pour l'embbedding de Summary
 # pip install -U sentence-transformers
 
 
-# In[10]:
+
 
 
 # 2. Standardiser toutes les données
@@ -95,7 +88,7 @@ from scipy.sparse import hstack, csr_matrix, issparse
 # from sentence_transformers import SentenceTransformer   # pour l'embedding de Summary
 
 
-# In[11]:
+
 
 
 # =========================
@@ -107,7 +100,7 @@ df_films['BEST_RATING'] = df_films['BEST_RATING'].fillna(0)
 df_films = df_films.fillna("")
 
 
-# In[12]:
+
 
 
 # =========================
@@ -118,7 +111,7 @@ X_num = scaler.fit_transform(df_films[cols_num])
 X_num = csr_matrix(X_num)
 
 
-# In[13]:
+
 
 
 # =========================
@@ -129,7 +122,7 @@ X_cat_simple = ohe_simple.fit_transform(df_films[cols_cat_simple])
 X_cat_simple = csr_matrix(X_cat_simple)
 
 
-# In[14]:
+
 
 
 # =========================
@@ -161,7 +154,7 @@ df_films = df_films.drop(
     )
 
 
-# In[15]:
+
 
 
 # =========================
@@ -196,7 +189,7 @@ X_summary = tfidf.fit_transform(df_films[col_text].fillna(""))
 #    )
 
 
-# In[16]:
+
 
 
 # =========================
@@ -246,7 +239,7 @@ tfidf_title = TfidfVectorizer(
 X_title = tfidf_title.fit_transform(df_films["TITLE_ALL"])
 
 
-# In[17]:
+
 
 
 # =========================
@@ -265,7 +258,7 @@ X_summary = normalize(X_summary, norm="l2")
 X_title = normalize(X_title, norm="l2")
 
 
-# In[18]:
+
 
 
 # =========================
@@ -291,7 +284,7 @@ X_summary_weighted = X_summary * 0.8
 X_title_weighted = X_title * 2.0
 
 
-# In[19]:
+
 
 
 # =========================
@@ -312,7 +305,7 @@ matrix_list = [X_num_weighted, X_cat_simple_weighted, X_genres_weighted, X_actor
 matrix_list = [ensure_csr(matrix) for matrix in matrix_list]
 
 
-# In[20]:
+
 
 
 # =========================
@@ -326,7 +319,7 @@ matrix_list = [ensure_csr(matrix) for matrix in matrix_list]
 X = hstack(matrix_list).tocsr()
 
 
-# In[21]:
+
 
 
 # 3. Crée une instance de NearestNeighbors sur les données standardisées.
@@ -338,14 +331,14 @@ model_NN = NearestNeighbors(
     )
 
 
-# In[22]:
+
 
 
 # 4. Entraînement du modèle
 model_NN.fit(X)
 
 
-# In[23]:
+
 
 
 # Fonction qui trouve le film recherché dans notre bdd
@@ -362,7 +355,7 @@ def find_movie_index(input_title, df = df_films):
     return matches.index[0]
 
 
-# In[24]:
+
 
 
 # fonction de recommandation de film en fonction du titre de film recherché
@@ -389,13 +382,13 @@ def recommend_movies(input_title, model = model_NN, X_features = X, df = df_film
     return df.iloc[input_film_index], df.drop(columns=["TITLE_ALL"]).iloc[similar_indices]
 
 
-# In[25]:
+
 
 
 df_films['TITLE_ORIGINAL'].unique()
 
 
-# In[26]:
+
 
 
 recommend_movies("Illï")
