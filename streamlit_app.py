@@ -172,7 +172,7 @@ df_films = df_films.drop(
 
 tfidf = TfidfVectorizer(
     max_features = 500,
-    stop_word = "english"
+    stop_words = "english"
     )
 
 X_summary = tfidf.fit_transform(df_films[col_text].fillna(""))
@@ -393,6 +393,7 @@ def recommend_movies(user_query, desired_number_of_recommendations):
 # =============================
 # =============================
 
+
 # =============================
 # EN-TÊTE
 # =============================
@@ -406,11 +407,154 @@ st.write(
     """
     )
 
+# =============================
+# FONCTIONS
+# =============================
+def genre_split(genres_string):
+#   Retourne la liste des genres uniques à partir d'une série de genres séparés par | (pipe)
+    return [genre.strip().title()
+            for genre in genres_string.split("|")
+            if genre.strip()
+            ]
+
+
+def shorten(text, max_len = 240):
+#   Nettoie le texte et le tronque à max_len sans couper les mots    
+    text = "" if pd.isna(text) else str(text)
+    text = text.replace("\n", " ").strip()
+    return text if len(text) <= max_len else text[:max_len].rsplit(" ", 1)[0] + "…"
+
+
+def render_card(movie_row):
+#   Affiche le film sous forme de carte
+    col_gauche_poster, col_droite_text = st.columns([1, 3], gap="large")
+
+    with col_gauche_poster:
+        poster = movie_row.get("POSTER_PATH", "")
+        if pd.notna(poster) and str(poster).strip():
+            st.image(str(poster), width="stretch")
+        else:
+            st.caption("🎞️ Pas d'affiche")
+
+    with col_droite_text:
+
+        # Titre principal + année
+        title_origin = movie_row.get("TITLE_ORIGINAL", "Titre inconnu")
+        title_origin = str(title_origin)
+        title_fr = movie_row.get("TITLE_FR", "")
+        title_fr = str(title_fr)
+        title_fr_main = title_fr.split("|")[0].strip()
+        title_en = movie_row.get("TITLE_EN", "")
+        title_en = str(title_en)
+        title_en_main = title_en.split("|")[0].strip()
+        year = movie_row.get("YEAR", "")
+
+        if title_fr_main:
+            main_title = f"**{title_fr_main}**"
+        elif title_en_main:
+            main_title = f"**{title_en_main}**"
+        else:
+            main_title = f"**{title_origin}**"
+
+        if pd.notna(year) and str(year).strip():
+            try:
+                main_title += f" ({int(float(year))})"
+            except Exception:
+                pass
+        
+        st.markdown(main_title)
+
+
+        # affichage du titre d'origine si différent du titre FR ou EN
+        if title_fr_main != "" and title_en_main != "" and pd.notna(title_origin) and title_origin.strip() != title_fr_main and title_origin.strip() != title_en_main:
+            st.caption(
+                f"Titre d'origine : '{shorten(title_origin, 60)}'"
+                )
+
+
+        # affichage des genres
+        genres = movie_row.get("GENRES", "")
+        if pd.notna(genres) and str(genres).strip():
+            genres_list = genre_split(genres)
+            display_genres = ", ".join(genres_list)
+            st.caption(shorten(display_genres, 90))
+
+        # affichage de la note
+        # On vérifie d'abord qu'il y a une valeur dans SOURCE_TO_KEEP
+        # avant d'afficher une note
+        # car un 0 a été mis par défaut dans BEST_RATING pour le ML
+        rating = movie_row.get("BEST_RATING", None)
+        rating_source = movie_row.get("SOURCE_TO_KEEP", None)
+        
+        if rating_source is not None and pd.notna(rating_source) and str(rating_source).strip():
+            try:
+                rating_value = float(rating)
+                st.caption(f"⭐ {rating_value:.1f} • 🗳️ {rating_source}")
+            except Exception:
+                pass
+
+        # affichage du résumé
+        summary = movie_row.get("SUMMARY", "")
+        if pd.notna(summary) and str(summary).strip():
+            st.write(shorten(summary, 280))
+        else:
+            st.caption("Pas de résumé disponible.")
+
+        # affichage du réalisateur
+        
+        # affichage des acteurs
+
+        # affichage des compositeurs
+
+
+def recommended_render_cards(movies_df):
+#   Affiche les films recommandés du dataframe df sous forme de cartes
+    for _, row in movies_df.iterrows():
+        render_card(row)
+        st.divider()
+
+
+
+def film_search(selected_movie):
+    if not selected_movie:
+        pass
+
+    with st.spinner("Recherche en cours…"):
+        # Utilisation de la fonction de recommandation ML
+        searched_film, film_to_display = recommend_movies(selected_movie, desired_number_of_recommendations)
+        
+        # Retourne le df du film recherché
+        st.dataframe(
+            searched_film,
+            width='stretch'
+            )
+
+        # Affiche la carte du film recherché
+        st.write("Film recherché :")
+        render_card(searched_film.iloc[0])
+
+
+        # Retourne le df des films recommandés
+        st.dataframe(
+            film_to_display,
+            width='stretch'
+            )
+        
+        # Affiche les cartes des films recommandés
+        st.write("Nos recmmandations :")
+        recommended_render_cards(film_to_display)
+
+
+# ----------------------------
+# Affichage des titres uniques et des doublons
+# ----------------------------
+film_title_year = df_films[["TITLE_ALL", "YEAR"]].astype(str).apply(" - ".join, axis=1)
+
 st.write(
     "Liste des titres uniques dans la base de données :"
     )
 st.dataframe(
-    sorted(df_films['TITLE_ALL'].unique()),
+    sorted(film_title_year),
     width='stretch'
     )
 
@@ -422,107 +566,148 @@ st.dataframe(
     width='stretch'
 )
 
-# =============================
-# UI
-# =============================
+
+
+
+# ----------------------------
+# Affichage des modes de recherche
+# ----------------------------
 radio_mode = st.radio(
     "Mode de recherche",
     ["Film", "Acteur", "Réalisateur", "Compositeur"],
     horizontal = True
     )
 
-# Set placeholder based on radio selection
+desired_number_of_recommendations = 5
+
 if radio_mode == "Film":
     input_caption = "Entrez un nom de film. Nous vous recommanderons 5 films proches de celui-ci, selon de nombreux critères."
     input_placeholder = "Inception • Batman • Harry Potter"
+
+    user_query = st.text_input("🎬 Rechercher un film", placeholder = input_placeholder)
+
+    options = []
+    if user_query:
+        options = df_films[
+            df_films["TITLE_ORIGINAL"]
+            .str.contains(user_query, case=False, na=False)
+        ]["TITLE_ORIGINAL"].head(10).tolist()
+
+    selected_movie = st.selectbox("Suggestions", options)
+
+    if selected_movie:
+        st.write("Choisi :", selected_movie)
+        film_search(selected_movie)
+
+
 elif radio_mode == "Acteur":
     input_caption = "Entrez un nom d'acteur ou d'actrice. Nous afficherons la liste des films de notre liste auxquels il/elle a participé."
     input_placeholder = "Henry Cavill • Angelina Jolie • Brigitte Bardot"
+    st.caption(input_caption)
+
+    user_query = st.text_input(
+        "Ta recherche",
+        placeholder = input_placeholder
+        )
 elif radio_mode == "Réalisateur":
     input_caption = "Entrez un nom de réalisateur ou réalisatrice. Nous afficherons la liste des films de notre liste auxquels il/elle a participé."
     input_placeholder = "Christopher Nolan • Jean-Luc Godard • Alfred Hitchcock"
+    st.caption(input_caption)
+
+    user_query = st.text_input(
+        "Ta recherche",
+        placeholder = input_placeholder
+        )    
 elif radio_mode == "Compositeur":
     input_caption = "Entrez un nom de compositeur ou compositrice. Nous afficherons la liste des films de notre liste auxquels il/elle a participé."
     input_placeholder = "Hans Zimmer • Ennio Morricone • John Williams"
+    st.caption(input_caption)
 
-st.caption(input_caption)
+    user_query = st.text_input(
+        "Ta recherche",
+        placeholder = input_placeholder
+        )
 
-user_query = st.text_input(
-    "Ta recherche",
-    placeholder = input_placeholder
-    )
+# =============================
+# Moteur de recherche et affichage des résultats 
+# =============================  
 
-sort_label = st.selectbox(
-    "Trier les résultats",
-    ["Pertinence (ML)", "Plus récents", "Mieux notés", "Plus populaires"],
-    index = 0  # si on veux "Plus récents" par défaut, mets 1
-    )
 
-sort_map = {
-    "Pertinence (ML)": "similar",
-    "Plus récents": "recent",
-    "Mieux notés": "rating",
-    "Plus populaires": "votes"
-    }
+# if st.button("Rechercher"):
+#     try:
+#         user_query = user_query.strip()
+#         if not user_query:
+#             st.warning("Entrez un texte.")
+#             st.stop()
 
-sort_mode = sort_map.get(sort_label, "recent")
+#         with st.spinner("Recherche en cours…"):
+#             if radio_mode == "Film" :
+#                 # Utilisation de la fonction de recommandation ML
+#                 searched_film, film_to_display = recommend_movies(user_query, desired_number_of_recommendations)
+                
+#                 # Retourne le df du film recherché
+#                 # st.dataframe(
+#                 #     searched_film,
+#                 #     width='stretch'
+#                 #     )
+
+#                 # Affiche la carte du film recherché
+#                 st.write("Film recherché :")
+#                 render_card(searched_film.iloc[0])
+
+
+#                 # Retourne le df des films recommandés
+#                 # st.dataframe(
+#                 #     film_to_display,
+#                 #     width='stretch'
+#                 #     )
+                
+#                 # Affiche les cartes des films recommandés
+#                 st.write("Nos recmmandations :")
+#                 recommended_render_cards(film_to_display)
+                
+#             # elif radio_mode == "Acteur" :
+#             #     df = films_by_actor(user_query, desired_number_of_recommendations)
+#             # elif radio_mode == "Réalisateur" :
+#             #     df = films_by_director(user_query, desired_number_of_recommendations)
+#             # elif radio_mode == "Compositeur" :
+#             #     df = films_by_composer(user_query, desired_number_of_recommendations)
+
+#         # st.success(f"✅ {radio_mode} — {desired_number_of_recommendations} résultats")
+        
+#     except Exception as e:
+#         st.error(str(e))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # =============================
-# ...
+# Filtre genre
 # =============================
-desired_number_of_recommendations = 5
-
-if st.button("Rechercher"):
-    try:
-        user_query = user_query.strip()
-        if not user_query:
-            st.warning("Entrez un texte.")
-            st.stop()
-
-        with st.spinner("Recherche en cours…"):
-            if radio_mode == "Film" :
-                searched_film_df, recommended_movies_df = recommend_movies(user_query, desired_number_of_recommendations)
-            #     df = films_by_actor(user_query, n = desired_number_of_recommendations)
-            # elif radio_mode == "Réalisateur" :
-            #     df = films_by_director(user_query, n = desired_number_of_recommendations)
-            # elif radio_mode == "Compositeur" :
-            #     df = films_by_composer(user_query, n = desired_number_of_recommendations)
-
-        # st.success(f"✅ {radio_mode} — {desired_number_of_recommendations} résultats")
-        # render_cards(df_films, k = desired_number_of_recommendations)
-
-    except Exception as e:
-        st.error(str(e))
-
-st.dataframe(
-    searched_film_df,
-    width='stretch'
-    )
-
-st.dataframe(
-    recommended_movies_df,
-    width='stretch'
-    )
-
-# =============================
-# ...
-# =============================
-genre_list = (
-    df_films['GENRES']
-    .str.split('|')   # sépare les genres
-    .explode()        # met un genre par ligne
-    .str.strip()      # enlève les espaces
-    .str.title()      # met en forme (Action, Drama, etc.)
-    .unique()         # genres uniques
-    .tolist()         # liste Python (optionnel)
-)
-
 filter_genres = st.multiselect(
     "Genres",
-    genre_list
+    genre_split(df_films['GENRES'])
     )
-
 
 
 if filter_genres: # si un filtre est sélectionné, afficher le df filtré 
@@ -549,3 +734,95 @@ st.dataframe(
     df_films_to_display,
     width='stretch'
     )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# def render_cards(recommended_movies_df):
+# #   Affiche les films recommandés du dataframe df sous forme de cartes
+#     for _, row in recommended_movies_df.iterrows():
+#         col_gauche_poster, col_droite_text = st.columns([1, 3], gap="large")
+
+#         with col_gauche_poster:
+#             poster = row.get("POSTER_PATH", "")
+#             if pd.notna(poster) and str(poster).strip():
+#                 st.image(str(poster), width="stretch")
+#             else:
+#                 st.caption("🎞️ Pas d'affiche")
+
+#         with col_droite_text:
+
+#             # Titre principal + (année)
+#             title_origin = row.get("TITLE_ORIGINAL", "Titre inconnu")
+#             title_fr = row.get("TITLE_FR", "")
+#             title_fr_main = title_fr.split("|")[0].strip()
+#             title_en = row.get("TITLE_EN", "")
+#             title_en_main = title_en.split("|")[0].strip()
+#             year = row.get("YEAR", "")
+    
+#             if title_fr_main:
+#                 main_title = f"**{title_fr_main}**"
+#             elif title_en_main:
+#                 main_title = f"**{title_en_main}**"
+#             else:
+#                 main_title = f"**{title_origin}**"
+
+#             if pd.notna(year) and str(year).strip():
+#                 try:
+#                     main_title += f" ({int(float(year))})"
+#                 except Exception:
+#                     pass
+#             st.markdown(main_title)
+
+#             # autres titres
+#             if pd.notna(title_origin) and title_origin.strip() != title_fr_main and title_origin.strip() != title_en_main:
+#                 st.caption(
+#                     f"Titre d'origine : {shorten(title_origin, 60)}_" if title_origin else ""
+#                     )
+
+#             # genres si disponible
+#             genres = row.get("GENRES", "")
+#             if pd.notna(genres) and str(genres).strip():
+#                 genres_list = [
+#                     genre.strip().title() 
+#                     for genre 
+#                     in genres.split("|") 
+#                     if genre.strip()
+#                     ]
+#                 display_genres = ", ".join(genres_list)
+#                 st.caption(shorten(display_genres, 90))
+
+#             # qualité si disponible
+#             rating = row.get("BEST_RATING", None)
+#             rating_source = row.get("SOURCE_TO_KEEP", None)
+#             if rating is not None and pd.notna(rating):
+#                 if rating_source is not None and pd.notna(rating_source):
+#                     st.caption(f"⭐ {float(rating):.1f} • 🗳️ {rating_source}")
+#                 else:
+#                     st.caption(f"⭐ {float(rating):.1f}")
+
+#             # résumé si disponible
+#             summary = row.get("SUMMARY", "")
+#             if pd.notna(summary) and str(summary).strip():
+#                 st.write(shorten(summary, 280))
+#             else:
+#                 st.caption("Pas de résumé disponible.")
+
+#             # affichage du réalisateur
+            
+#             # affichage des acteurs
+
+#             # affichage des compositeurs
+
+#         st.divider()
+
