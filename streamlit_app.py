@@ -429,6 +429,7 @@ def genre_split(genres_string):
 
 
 
+
 def shorten(text, max_len = 240):
 #   Nettoie le texte et le tronque à max_len sans couper les mots    
     text = "" if pd.isna(text) else str(text)
@@ -436,16 +437,21 @@ def shorten(text, max_len = 240):
     return text if len(text) <= max_len else text[:max_len].rsplit(" ", 1)[0] + "…"
 
 
-# Créer une barre de recherche avec autocomplete pour les titres de films
+# Créer une barre de recherche avec autocomplete
 # Nécessite l'installation de streamlit-searchbox : pip install streamlit-searchbox
+# Retourne le titre d'origine + année dans la liste des suggestions
+# Et l'ID du film pour la sélection qui sera utilisée pour le machine learning
 from streamlit_searchbox import st_searchbox
 def searchbox_film_title(searchterm: str) -> list:
+    # Pour les titres de films
     if not searchterm:
         return []
 
-    results = df_films[df_films["TITLE_ALL"].str.contains(searchterm, case=False, na=False)].head(10)
+    results = df_films[df_films['TITLE_ALL'].str.contains(searchterm, case=False, na=False)].head(10)
 
-    return [(f"{row['TITLE_ORIGINAL']} ({int(row['YEAR'])})", row["ID_FILM"]) for _, row in results.iterrows()]
+    return [(f"{row['TITLE_ORIGINAL']} ({int(row['YEAR'])})", row['ID_FILM']) for _, row in results.iterrows()]
+
+
 
 
 
@@ -464,15 +470,12 @@ def ids_to_names(ids_string, mapping_table):
 
 
 
-
-
-
 def render_card(movie_row):
 #   Affiche le film sous forme de carte
     col_gauche_poster, col_droite_text = st.columns([1, 3], gap="large")
 
     with col_gauche_poster:
-        poster = movie_row.get("POSTER_PATH", "")
+        poster = movie_row.get('POSTER_PATH', "")
         if pd.notna(poster) and str(poster).strip():
             st.image(str(poster), width="stretch")
         else:
@@ -550,24 +553,29 @@ def render_card(movie_row):
         director_name = movie_row.get("DIRECTOR", None)
         if pd.notna(director_name) and str(director_name).strip():
             director_list = ids_to_names(director_name, mapping_table_id_to_name)
-            st.write(f"Réalisateur(s): {shorten(director_list, 280)}")
+            if director_list != "":
+                st.write(f"Réalisateur(s): {shorten(director_list, 280)}")
 
 
         # affichage des acteurs
         actor_name = movie_row.get("ACTOR", None)
         if pd.notna(actor_name) and str(actor_name).strip():
             actor_list = ids_to_names(actor_name, mapping_table_id_to_name)
-            st.write(f"Acteur(s): {shorten(actor_list, 280)}")
+            if actor_list != "":
+                st.write(f"Acteur(s): {shorten(actor_list, 280)}")
 
         # affichage des compositeurs
         composer_name = movie_row.get("COMPOSER", None)
         if pd.notna(composer_name) and str(composer_name).strip():
             composer_list = ids_to_names(composer_name, mapping_table_id_to_name)
-            st.write(f"Compositeur(s): {shorten(composer_list, 280)}")
+            if composer_list != "":
+                st.write(f"Compositeur(s): {shorten(composer_list, 280)}")
+
+
 
 
 def recommended_render_cards(movies_df):
-#   Affiche les films recommandés du dataframe df sous forme de cartes
+#   Affiche les films recommandés du dataframe df sous forme de cartes avec séparateur
     for _, row in movies_df.iterrows():
         render_card(row)
         st.divider()
@@ -592,12 +600,11 @@ def film_search(selected_film):
         st.write("Film recherché :")
         render_card(searched_film.iloc[0])
 
-
         # Helper : Retourne le df des films recommandés
-        st.dataframe(
-            film_to_display,
-            width='stretch'
-            )
+        # st.dataframe(
+        #     film_to_display,
+        #     width='stretch'
+        #     )
         
         # Affiche les cartes des films recommandés
         st.write("Nos recmmandations :")
@@ -605,26 +612,34 @@ def film_search(selected_film):
 
 
 
-# ----------------------------
-# Affichage des titres uniques et des doublons
-# ----------------------------
-film_title_year = df_films[["TITLE_ALL", "YEAR"]].astype(str).apply(" - ".join, axis=1)
 
-st.write(
-    "Liste des titres uniques dans la base de données :"
-    )
-st.dataframe(
-    sorted(film_title_year),
-    width='stretch'
-    )
+def searchbox_person(searchterm: str) -> list:
+    # Pour les noms de personnes
+    if not searchterm:
+        return []
 
-st.write(
-    "Liste des titres d'origine en doublon dans la base de données :"
-    )
-st.dataframe(
-    df_films[df_films['TITLE_ORIGINAL'].duplicated()][['TITLE_ORIGINAL']],
-    width='stretch'
-)
+    results = df_person[df_person['PERSON_NAME'].str.contains(searchterm, case=False, na=False)].head(10)
+
+    return [(f"{row['PERSON_NAME']} ({row['ID_PERSON']})", row['ID_PERSON']) for _, row in results.iterrows()]
+
+
+def person_search(selected_person):
+    if not selected_person:
+        pass
+
+    with st.spinner("Recherche en cours…"):
+        # Trouve les films avec la personne sélectionnée
+        list_film_for_selected_person = selected_person.split("(")[-1].replace(")", "").strip()
+        df_actor_films = df_films[
+            df_films["ACTOR"].str.contains(actor_id, na=False)
+            ]
+
+        st.write(
+            f"Films avec {selected_person.split('(')[0].strip()} :"
+            )
+
+        recommended_render_cards(df_actor_films)
+
 
 
 
@@ -641,19 +656,46 @@ radio_mode = st.radio(
 desired_number_of_recommendations = 5
 
 if radio_mode == "Film":
+    # ----------------------------
+    # HELPER : Affichage des titres uniques et des doublons
+    # ----------------------------
+    film_title_year = df_films[["TITLE_ALL", "YEAR"]].astype(str).apply(" - ".join, axis=1)
+
+    st.write(
+        "Liste des titres uniques dans la base de données :"
+        )
+    st.dataframe(
+        sorted(film_title_year),
+        width='stretch'
+        )
+
+    st.write(
+        "Liste des titres d'origine en doublon dans la base de données :"
+        )
+    st.dataframe(
+        df_films[df_films['TITLE_ORIGINAL'].duplicated()][['TITLE_ORIGINAL']],
+        width='stretch'
+    )
+    # ----------------------------
+    # FIN DU HELPER
+    # ----------------------------
+
     input_caption = "Entrez un nom de film. Nous vous recommanderons 5 films proches de celui-ci, selon de nombreux critères."
     input_placeholder = "Inception • Batman • Harry Potter"
 
     st.caption(input_caption)
-    # user_query = st.text_input("🎬 Rechercher un film", placeholder = input_placeholder)
+    
 
     # Barre de recherche avec autocomplétion
     selected_film = st_searchbox(
     searchbox_film_title,
     placeholder = input_placeholder,
-    key = "my_key"
+    key = "my_key" # je ne sais pas à quoi cela sert, c'était dans la documentation du module
     )
 
+
+    # Ancienne méthode de recherche sans autocomplétion
+    # user_query = st.text_input("🎬 Rechercher un film", placeholder = input_placeholder)
 
     # cherche les films correspondant à la saisie
 #     options = []
@@ -687,10 +729,31 @@ elif radio_mode == "Acteur":
     input_placeholder = "Henry Cavill • Angelina Jolie • Brigitte Bardot"
     st.caption(input_caption)
 
-    user_query = st.text_input(
-        "Ta recherche",
-        placeholder = input_placeholder
-        )
+    # user_query = st.text_input(
+    #     "Ta recherche",
+    #     placeholder = input_placeholder
+    #     )
+
+    # Barre de recherche avec autocomplétion
+    selected_person = st_searchbox(
+    searchbox_person,
+    placeholder = input_placeholder,
+    key = "my_key" # je ne sais pas à quoi cela sert, c'était dans la documentation du module
+    )
+
+    if selected_person:
+        # Trouve les films avec l'acteur / actrice sélectionné(e)
+        actor_id = selected_person.split("(")[-1].replace(")", "").strip()
+        df_actor_films = df_films[
+            df_films["ACTOR"].str.contains(actor_id, na=False)
+            ]
+
+        st.write(
+            f"Films avec {selected_person.split('(')[0].strip()} :"
+            )
+
+        recommended_render_cards(df_actor_films)
+
     
 elif radio_mode == "Réalisateur":
     input_caption = "Entrez un nom de réalisateur ou réalisatrice. Nous afficherons la liste des films de notre liste auxquels il/elle a participé."
