@@ -21,8 +21,10 @@ import streamlit as st
 def load_data_film():
     df_films = pd.read_csv("DIM_FILM_LIST_FINAL_short_for_quick_work.csv",
     nrows = 1000,
-    encoding='latin1')
+    encoding='utf-8',
+    errors='replace')
     return df_films
+
 
 df_films = load_data_film()
 
@@ -32,7 +34,8 @@ def load_data_person():
     df_person = pd.read_csv(
     'DIM_PERSON_LIST_FINAL_short_for_quick_work.csv',
     nrows = 4000,
-    encoding='latin1')
+    encoding='utf-8',
+    errors='replace')
     return df_person
 
 df_person = load_data_person()
